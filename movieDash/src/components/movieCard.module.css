@@ -13,7 +13,7 @@
   box-shadow: 0 0 15px rgba(239, 68, 68, 0.5); /* Brilho vermelho */
 }
 
-/* O pseudo-elemento que cria o brilho */
+/* cria o brilho */
 .card::after {
   content: '';
   position: absolute;
@@ -22,7 +22,7 @@
   width: 100%;
   height: 100%;
 
-/* gradiente (efeito metalico) */
+/* efeito metalico card */
 
 background: linear-gradient(
     45deg,
@@ -31,17 +31,13 @@ background: linear-gradient(
     #FFFFFF00 70%     /* Branco com 0% de opacidade */
   );
 
-  /* O brilho começa invisível*/
   opacity: 0;
 
-  /* transição na opacidade, feito de fade */
   transition: opacity 0.4s ease-in-out;
   
-  /* brilho não interfire com o clique no card */
   pointer-events: none;
 }
 
-/* Ao passar o mouse, o brilho se torna visível */
 .card:hover::after {
   opacity: 1;
 }
