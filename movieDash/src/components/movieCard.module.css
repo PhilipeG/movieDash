@@ -1,0 +1,47 @@
+.card {
+  background: #1f2937; /* cinza escuro */
+  border-radius: 0.5rem;
+  padding: 0.7rem;
+  color: white;
+  transition: transform 0.2s ease, box-shadow 0,3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.card:hover {
+  transform: translateY(-5px); /* Leve elevação em vez de aumentar a escala */
+  box-shadow: 0 0 15px rgba(239, 68, 68, 0.5); /* Brilho vermelho */
+}
+
+/* O pseudo-elemento que cria o brilho */
+.card::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+
+/* gradiente (efeito metalico) */
+
+background: linear-gradient(
+    45deg,
+    #FFFFFF00 50%,    /* Branco com 0% de opacidade */
+    #FFFFFF40 2%,    /* Branco com 25% de opacidade */
+    #FFFFFF00 70%     /* Branco com 0% de opacidade */
+  );
+
+  /* O brilho começa invisível*/
+  opacity: 0;
+
+  /* transição na opacidade, feito de fade */
+  transition: opacity 0.4s ease-in-out;
+  
+  /* brilho não interfire com o clique no card */
+  pointer-events: none;
+}
+
+/* Ao passar o mouse, o brilho se torna visível */
+.card:hover::after {
+  opacity: 1;
+}
