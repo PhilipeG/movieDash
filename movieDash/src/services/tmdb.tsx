@@ -13,6 +13,16 @@ const api = axios.create({
 
 });
 
+export async function getMovieById(id: number): Promise<Movie> {
+  const res = await api.get(`/movie/${id}`);
+  return res.data;
+}
+
+export async function getGenres(): Promise<Genre[]> {
+  const res = await api.get("/genre/movie/list");
+  return res  .data.genres;
+}
+
 
 export async function getMovieImages(id:number) {
 

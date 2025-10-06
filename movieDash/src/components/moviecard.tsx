@@ -15,37 +15,37 @@ export default function MovieCard({
   isFavorite,
   onClick,
 }: Props) {
-  // 2. Estado para controlar o carregamento da imagem deste card específico
+  //controla o carregamento da imagem do card específico
   const [isImageLoaded, setIsImageLoaded] = useState(false);
 
   return (
     <div
-      className={`${styles.card} flex flex-col shadow cursor-pointer`}
+      className={`${styles.card} flex flex-col shadow cursor-pointer hover:scale-105 transition-transform duration-200`}
       onClick={onClick}
     >
-      {/* Container da imagem com altura fixa para evitar pulos no layout */}
+      {/* Container da altura fixa para evitar pulos no layout */}
       <div className="h-72 w-full">
         {movie.poster_path ? (
           <>
-            {/* 3. Exibe o Skeleton enquanto a imagem não estiver carregada */}
+            {/* Exibe o Skeleton enquanto a imagem não estiver carregada */}
             {!isImageLoaded && (
               <div className="w-full h-full bg-gray-700 animate-pulse rounded-t-lg"></div>
             )}
 
-            {/* 4. A imagem real do filme */}
+            {/* A imagem real do filme */}
             <img
               src={`https://image.tmdb.org/t/p/w500${movie.poster_path}`}
               alt={movie.title}
               // 5. Atualiza o estado quando a imagem carregar
               onLoad={() => setIsImageLoaded(true)}
-              // A imagem só fica visível (block) quando carregada, senão fica oculta (hidden)
+              // A imagem só fica visível quando carregada, senão fica oculta
               className={`w-full h-full object-cover rounded-t-lg ${
                 isImageLoaded ? "block" : "hidden"
               }`}
             />
           </>
         ) : (
-          // 6. Placeholder para filmes SEM imagem
+          // Placeholder para filmes SEM imagem
           <div className="h-72 flex items-center justify-center bg-gray-800 rounded-t-lg">
             <div className="h-72 w-full flex items-center justify-center text-center bg-gradient-to-br from-gray-800 to-gray-900 rounded-t-lg p-4">
               <h3 className="text-gray-300 font-bold text-lg">

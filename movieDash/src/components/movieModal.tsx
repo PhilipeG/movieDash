@@ -2,13 +2,14 @@ import { useState, useEffect } from "react";
 import { getMovieImages, getMovieCertification, getMovieDetails } from "../services/tmdb";
 import type { Movie, MovieDetails } from "../services/tmdb";
 
-// formata o tempo de duração
+// Função auxiliar para formatar o tempo de duração
 function formatRuntime(minutes: number) {
   const hours = Math.floor(minutes / 60);
   const mins = minutes % 60;
   return `${hours}h ${mins}m`;
 }
 
+// Mapeamento de provedores de streaming para suas URLs de busca
 const streamingLinkMap: { [key: string]: string } = {
   'Netflix': 'https://www.netflix.com/search?q=',
   'Amazon Prime Video': 'https://www.primevideo.com/search/ref=atv_nb_sr?phrase=',
@@ -18,7 +19,6 @@ const streamingLinkMap: { [key: string]: string } = {
   'Apple TV Plus': 'https://tv.apple.com/br/search?term=',
   'Globoplay': 'https://globoplay.globo.com/busca/?q=',
 };
-
 
 interface Props {
   movie: Movie | null;
@@ -137,53 +137,80 @@ export default function MovieModal({ movie, onClose }: Props) {
           </div>
 
           {/* Conteúdo Condicional Atualizado */}
+
+          
           <div className="mt-4 text-gray-300">
-            {tab === "sinopse" && <p>{movie.overview}</p>}
+            {tab === "sinopse" && <p>{movie.overview || 'Sinopse indisponível'}</p>}
 
             {tab === "info" && (
               loadingDetails ? <p>Carregando...</p> : (() => {
                 const streamingProviders = details?.['watch/providers']?.results?.BR?.flatrate || [];
-                const watchLink = details?.['watch/providers']?.results?.BR?.link;
-
+                
                 return (
                   <div className="space-y-4">
-
                     <div>
                       <strong className="text-white">Data de Lançamento:</strong>
                       <p>{details?.release_date ? new Date(details.release_date).toLocaleDateString('pt-BR', { timeZone: 'UTC' }) : 'N/A'}</p>
                     </div>
-
                     <div>
                       <strong className="text-white">Duração:</strong>
                       <p>{details?.runtime ? formatRuntime(details.runtime) : 'N/A'}</p>
                     </div>
-
                     <div>
                       <strong className="text-white">Gênero:</strong>
                       <p>{details?.genres?.map(g => g.name).join(', ') || 'N/A'}</p>
                     </div>
-
                     <div>
                       <strong className="text-white">Elenco Principal:</strong>
                       <p>{details?.credits?.cast?.slice(0, 5).map(c => c.name).join(', ') || 'N/A'}</p>
                     </div>
-
                     <div>
                       <strong className="text-white">Onde Assistir (Streaming):</strong>
-                      {streamingProviders.length > 0 && watchLink ? (
-                        <a href={watchLink} target="_blank" rel="noopener noreferrer" title="Ver opções para assistir">
-                          <div className="flex flex-wrap gap-2 mt-2 transition-opacity hover:opacity-80">
-                            {streamingProviders.map(p => (
-                              <img key={p.provider_id} src={`https://image.tmdb.org/t/p/w500${p.logo_path}`} alt={p.provider_name} title={p.provider_name} className="w-10 h-10 rounded-lg" />
-                            ))}
-                          </div>
-                        </a>
+                      {streamingProviders.length > 0 ? (
+                        <div className="flex flex-wrap gap-2 mt-2">
+                          {streamingProviders.map(provider => {
+                            const baseUrl = streamingLinkMap[provider.provider_name];
+                            const searchUrl = baseUrl && movie ? `${baseUrl}${encodeURIComponent(movie.title)}` : undefined;
+
+                            // se a url existir, retorna a imagem dentro de um link
+                            if (searchUrl) {
+                              return (
+                                <a
+                                  href={searchUrl}
+                                  
+                                  key={provider.provider_id}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                >
+                                  <img
+                                    src={`https://image.tmdb.org/t/p/w500${provider.logo_path}`}
+                                    alt={provider.provider_name}
+                                    title={provider.provider_name}
+                                    className="w-10 h-10 rounded-lg transition-transform hover:scale-110"
+                                  />
+                                </a>
+                              );
+                            }
+
+                            // caso contrário, retorna apenas a imagem (não clicável)
+                            return (
+                              <img
+                                // A 'key' aqui está no elemento mais externo, que é a própria imagem
+                                key={provider.provider_id}
+                                src={`https://image.tmdb.org/t/p/w500${provider.logo_path}`}
+                                alt={provider.provider_name}
+                                title={provider.provider_name}
+                                className="w-10 h-10 rounded-lg"
+                              />
+                            );
+                          })}
+                        </div>
                       ) : <p>Não disponível para streaming.</p>}
+                    </div>
                   </div>
-              </div>
-            )
-          })()
-        )}
+                )
+              })()
+            )}
 
             {tab === "galeria" && (
               <div className="grid grid-cols-2 gap-2">
@@ -191,11 +218,8 @@ export default function MovieModal({ movie, onClose }: Props) {
               </div>
             )}
           </div>
-
         </div>
-
       </div>
-      
     </div>
   );
 }

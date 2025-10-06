@@ -1,34 +1,80 @@
-import { useEffect, useState } from "react";
-import { getPopularMovies, searchMovies } from "./services/tmdb";
-import type { Movie } from "./services/tmdb";
+import { useEffect, useState, Fragment } from "react";
+import { Menu, Transition } from '@headlessui/react';
+import { getPopularMovies, searchMovies, getGenres, getMovieById } from "./services/tmdb";
+import type { Movie, Genre } from "./services/tmdb";
 import MovieCard from "./components/moviecard";
 import MovieModal from "./components/movieModal";
 
 function App() {
   const [movies, setMovies] = useState<Movie[]>([]);
-  const [favorites, setFavorites] = useState<number[]>([]);
+  const [favorites, setFavorites] = useState<number[]>(() => {
+    const savedFavorites = localStorage.getItem('dashmovie-favorites');
+    return savedFavorites ? JSON.parse(savedFavorites) : [];
+  });
   const [search, setSearch] = useState("");
   const [selectedMovie, setSelectedMovie] = useState<Movie | null>(null);
-
-  // estado para controle do carregamento
   const [loading, setLoading] = useState(true);
+  const [genres, setGenres] = useState<Genre[]>([]);
+  const [currentView, setCurrentView] = useState('popular'); // Para controlar a visualização
 
-  // carregar filmes ao iniciar
+  // Salva os favoritos no localStorage sempre que o estado 'favorites' mudar
   useEffect(() => {
-    async function load() {
-      // Inicia o carregamento
-      setLoading(true);
-      const data = await getPopularMovies();
-      setMovies(data);
-      // Finaliza o carregamento assim que os dados chegarem
-      setLoading(false); 
+    localStorage.setItem('dashmovie-favorites', JSON.stringify(favorites));
+  }, [favorites]);
+
+  // Função para exibir os filmes populares (página inicial)
+  const displayPopularMovies = async () => {
+    setLoading(true);
+    setCurrentView('popular');
+    try {
+      const movieData = await getPopularMovies();
+      setMovies(movieData);
+    } catch (error) {
+      console.error("Falha ao carregar filmes populares:", error);
+    } finally {
+      setLoading(false);
     }
-    load();
+  };
+
+  // Função para exibir os filmes favoritados
+  const displayFavoriteMovies = async () => {
+    setLoading(true);
+    setCurrentView('favorites');
+    if (favorites.length === 0) {
+      setMovies([]);
+      setLoading(false);
+      return;
+    }
+    try {
+      const favoriteMoviesData = await Promise.all(
+        favorites.map(id => getMovieById(id))
+      );
+      setMovies(favoriteMoviesData);
+    } catch (error)      {
+      console.error("Falha ao carregar filmes favoritos:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Carrega dados iniciais (gêneros e filmes populares)
+  useEffect(() => {
+    async function loadInitialData() {
+      setLoading(true);
+      try {
+        const genreData = await getGenres();
+        setGenres(genreData);
+        await displayPopularMovies();
+      } catch (error) {
+        console.error("Falha ao carregar dados iniciais:", error);
+      }
+    }
+    loadInitialData();
   }, []);
 
-  // busca de filmes
   const handleSearch = async () => {
     setLoading(true);
+    setCurrentView('search');
     const results = search.trim()
       ? await searchMovies(search)
       : await getPopularMovies();
@@ -44,46 +90,73 @@ function App() {
 
   return (
     <div className="min-h-screen text-white p-6 bg-gradient-to-br from-gray-900 via-gray-800 to-black">
-
       <header className="flex flex-col items-center w-full mb-12">
-
-      <h1 className="text-4xl font-bold mb-4 bg-gradient-to-r from-red-600 to-red-800 bg-clip-text text-transparent">🎬 DashMovie</h1>
-      
-
-      {/* barra de busca */}
-      <div className="flex items-center gap-2 p-2 border-2 border-gray-700 rounded-lg 
-                      focus-within:border-transparent focus-within:ring-2 focus-within:ring-red-600 
-                      transition-all duration-300 w-full max-w-md">
-        <input
-          type="text"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Buscar filmes..."
-          className="bg-transparent border-none text-white placeholder-gray-500 w-full focus:ring-0 focus:outline-none"
-        />
-        <button
-          onClick={handleSearch}
-          className="bg-red-600 hover:bg-red-700 px-4 py-1 rounded"
+        <h1 
+          className="text-4xl font-bold mb-4 bg-gradient-to-r from-red-600 to-red-800 bg-clip-text text-transparent cursor-pointer"
+          onClick={displayPopularMovies}
         >
-          Buscar
-        </button>
-      </div>
-      </header>
+          🎬 DashMovie
+        </h1>
 
-      {/* 🎥 Grid de filmes */}
+        <div className="relative flex items-center gap-4 w-full max-w-lg">
+          <div className="flex-grow flex items-center gap-2 p-2 border-2 border-gray-700 rounded-lg focus-within:border-transparent focus-within:ring-2 focus-within:ring-red-600 transition-all duration-300">
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Buscar filmes..."
+              className="bg-transparent border-none text-white placeholder-gray-500 w-full focus:ring-0 focus:outline-none"
+            />
+            <button
+              onClick={handleSearch}
+              className="bg-red-600 hover:bg-red-700 px-4 py-1 rounded"
+            >
+              Buscar
+            </button>
+          </div>
+
+          <Menu as="div" className="relative">
+            <Menu.Button className="p-2 border-2 border-gray-700 rounded-lg hover:border-red-600 transition-colors">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>
+            </Menu.Button>
+            
+            <Transition as={Fragment} enter="transition ease-out duration-200" enterFrom="transform opacity-0 scale-95" enterTo="transform opacity-100 scale-100" leave="transition ease-in duration-150" leaveFrom="transform opacity-100 scale-100" leaveTo="transform opacity-0 scale-95">
+              <Menu.Items className="absolute right-0 mt-2 w-48 bg-gray-800 border border-gray-700 rounded-lg shadow-lg z-20 focus:outline-none">
+                <Menu.Item>
+                  {({ active }) => (
+                 <button onClick={displayFavoriteMovies} className={`${active ? 'bg-gray-700' : ''} block w-full text-left px-4 py-2 text-sm text-gray-300 rounded-t-lg cursor-pointer`}>
+                    Favoritos
+                </button>
+                  )}
+                </Menu.Item>
+                <Menu.Item><a href="#" className="block px-4 py-2 text-sm text-gray-300 hover:bg-gray-700">Lançamentos 2025</a></Menu.Item>
+                
+                <div className="relative group">
+                  <span className="flex justify-between items-center w-full px-4 py-2 text-sm text-gray-300 hover:bg-gray-700 rounded-b-lg cursor-pointer">
+                    Gêneros
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
+                  </span>
+                  <div className="absolute left-full top-0 mt-[-1px] w-48 bg-gray-800 border border-gray-700 rounded-lg shadow-lg max-h-60 overflow-y-auto opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 custom-scrollbar">
+                    {genres.map(genre => (
+                      <Menu.Item key={genre.id}><a href="#" className="block px-4 py-2 text-sm text-gray-300 hover:bg-gray-700">{genre.name}</a></Menu.Item>
+                    ))}
+                  </div>
+                </div>
+              </Menu.Items>
+            </Transition>
+          </Menu>
+        </div>
+      </header>
+      
+      {/* GRID DE FILMES RESTAURADO */}
       {loading ? (
-        // skeleton enquanto carrega
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-8">
           {Array.from({ length: 18 }).map((_, i) => (
-            <div
-              key={i}
-              className="bg-gray-800 animate-pulse h-72 rounded-lg"
-            ></div>
+            <div key={i} className="bg-gray-800 animate-pulse h-72 rounded-lg"></div>
           ))}
         </div>
-      ) : (
-        // grid real
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+      ) : movies.length > 0 ? (
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-8">
           {movies.map((movie) => (
             <MovieCard
               key={movie.id}
@@ -94,9 +167,14 @@ function App() {
             />
           ))}
         </div>
+      ) : (
+        <div className="text-center text-gray-400 mt-10">
+          <p className="text-xl">Nenhum filme encontrado.</p>
+          {currentView === 'favorites' && <p>Adicione filmes à sua lista de favoritos para vê-los aqui.</p>}
+        </div>
       )}
 
-      {/* Modal */}
+      {/* MODAL */}
       {selectedMovie && (
         <MovieModal
           movie={selectedMovie}
