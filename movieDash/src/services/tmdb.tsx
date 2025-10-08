@@ -8,7 +8,6 @@ const api = axios.create({
   },
 });
 
-// --- INTERFACES ---
 export interface Movie {
   id: number;
   title: string;
@@ -35,7 +34,6 @@ export interface WatchProvider {
   logo_path: string;
 }
 
-// --- ESTA É A INTERFACE COMPLETA E CORRIGIDA ---
 export interface MovieDetails extends Movie {
   runtime: number;
   genres: Genre[];
@@ -54,7 +52,6 @@ export interface MovieDetails extends Movie {
   };
 }
 
-// --- FUNÇÕES DA API (com tipos corrigidos) ---
 export async function getMovieById(id: number): Promise<Movie> {
   const res = await api.get<Movie>(`/movie/${id}`);
   return res.data;
@@ -95,6 +92,25 @@ export const searchMovies = async (query: string, page = 1): Promise<Movie[]> =>
 };
 
 export async function getMovieCertification(id: number): Promise<string> {
-  // ... (função sem alterações)
-  return "L"; // Retorno simplificado para brevidade
+  try {
+    const response = await api.get<any>(`/movie/${id}/release_dates`);
+    const results = response.data.results;
+
+    const brazilRelease = results.find(
+      (result: any) => result.iso_3166_1 === "BR"
+    );
+
+    if (brazilRelease && brazilRelease.release_dates.length > 0) {
+      const releaseWithCert = brazilRelease.release_dates.find(
+        (rd: any) => rd.certification
+      );
+      if (releaseWithCert) {
+        return releaseWithCert.certification;
+      }
+    }
+    return "L";
+  } catch (error) {
+    console.error("Erro ao buscar certificação:", error);
+    return "L";
+  }
 }
