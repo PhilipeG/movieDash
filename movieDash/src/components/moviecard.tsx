@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { Movie } from "../services/tmdb";
-import styles from "./MovieCard.module.css";
+import styles from "./moviecard.module.css";
 
 interface Props {
   movie: Movie;
