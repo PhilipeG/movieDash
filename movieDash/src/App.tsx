@@ -1,6 +1,7 @@
 import { useEffect, useState, Fragment } from "react";
 import { Menu, Transition } from '@headlessui/react';
 import { getPopularMovies, searchMovies, getGenres, getMovieById } from "./services/tmdb";
+import { getSharedLists, updateFavoritesList, updateSeenList } from "./services/firebase"; // Importar funções do Firebase
 import type { Movie, Genre } from "./services/tmdb";
 import MovieCard from "./components/moviecard";
 import MovieModal from "./components/movieModal";
@@ -10,18 +11,17 @@ import { arrayMove, SortableContext, rectSortingStrategy } from '@dnd-kit/sortab
 
 function App() {
   const [movies, setMovies] = useState<Movie[]>([]);
-  const [favorites, setFavorites] = useState<number[]>(() => JSON.parse(localStorage.getItem('dashmovie-favorites') || '[]'));
   const [search, setSearch] = useState("");
   const [selectedMovie, setSelectedMovie] = useState<Movie | null>(null);
   const [loading, setLoading] = useState(true);
   const [genres, setGenres] = useState<Genre[]>([]);
-  const [currentView, setCurrentView] = useState(() => localStorage.getItem('dashmovie-view') || 'popular');
-  const [seenMovies, setSeenMovies] = useState<number[]>(() => JSON.parse(localStorage.getItem('dashmovie-seen') || '[]'));
+  
+  // Estados agora iniciam vazios e são preenchidos pelo Firebase
+  const [favorites, setFavorites] = useState<number[]>([]);
+  const [seenMovies, setSeenMovies] = useState<number[]>([]);
+  const [currentView, setCurrentView] = useState('popular'); // 'currentView' é apenas para controle de tela, não mais persistido
 
-  useEffect(() => { localStorage.setItem('dashmovie-view', currentView) }, [currentView]);
-  useEffect(() => { localStorage.setItem('dashmovie-favorites', JSON.stringify(favorites)) }, [favorites]);
-  useEffect(() => { localStorage.setItem('dashmovie-seen', JSON.stringify(seenMovies)) }, [seenMovies]);
-
+  // --- Funções de Display ---
   const displayPopularMovies = async () => {
     setLoading(true);
     setCurrentView('popular');
@@ -36,9 +36,8 @@ function App() {
     setLoading(true);
     setCurrentView('favorites');
     try {
-      const favoriteIds = JSON.parse(localStorage.getItem('dashmovie-favorites') || '[]');
-      if (favoriteIds.length === 0) { setMovies([]); return; }
-      const favoriteMoviesData = await Promise.all(favoriteIds.map((id: number) => getMovieById(id)));
+      if (favorites.length === 0) { setMovies([]); return; }
+      const favoriteMoviesData = await Promise.all(favorites.map((id: number) => getMovieById(id)));
       setMovies(favoriteMoviesData);
     } catch (error) { console.error("Falha ao carregar filmes favoritos:", error); setMovies([]); }
     finally { setLoading(false); }
@@ -48,44 +47,59 @@ function App() {
     setLoading(true);
     setCurrentView('seen');
     try {
-      const seenIds = JSON.parse(localStorage.getItem('dashmovie-seen') || '[]');
-      if (seenIds.length === 0) { setMovies([]); return; }
-      const seenMoviesData = await Promise.all(seenIds.map((id: number) => getMovieById(id)));
+      if (seenMovies.length === 0) { setMovies([]); return; }
+      const seenMoviesData = await Promise.all(seenMovies.map((id: number) => getMovieById(id)));
       setMovies(seenMoviesData);
     } catch (error) { console.error("Falha ao carregar filmes vistos:", error); setMovies([]); }
     finally { setLoading(false); }
   };
-  
-  const markAsSeen = (movieId: number) => {
-    setFavorites(current => current.filter(id => id !== movieId));
-    setSeenMovies(current => [...new Set([...current, movieId])]);
-    setMovies(current => current.filter(movie => movie.id !== movieId));
-  };
 
-  const removeFromFavorites = (movieId: number) => {
-    setFavorites(current => current.filter(id => id !== movieId));
-    if (currentView === 'favorites') {
-      setMovies(current => current.filter(movie => movie.id !== movieId));
-    }
-  };
-
+  // Efeito para carregar os dados iniciais do Firebase e da API
   useEffect(() => {
     async function loadInitialData() {
       setLoading(true);
       try {
+        const { favorites: initialFavorites, seen: initialSeen } = await getSharedLists();
+        setFavorites(initialFavorites);
+        setSeenMovies(initialSeen);
+
         await getGenres().then(setGenres);
-        const savedView = localStorage.getItem('dashmovie-view') || 'popular';
-        if (savedView === 'favorites') { await displayFavoriteMovies(); }
-        else if (savedView === 'seen') { await displaySeenMovies(); }
-        else { await displayPopularMovies(); }
-      } catch (error) { console.error("Falha ao carregar dados iniciais:", error);
-      } finally { setLoading(false); }
+        await displayPopularMovies();
+      } catch (error) { 
+        console.error("Falha ao carregar dados iniciais:", error);
+      } finally { 
+        setLoading(false); 
+      }
     }
     loadInitialData();
   }, []);
 
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 10 } }));
+  const markAsSeen = (movieId: number) => {
+    const newFavorites = favorites.filter(id => id !== movieId);
+    const newSeen = [...new Set([...seenMovies, movieId])];
+    setFavorites(newFavorites);
+    setSeenMovies(newSeen);
+    setMovies(current => current.filter(movie => movie.id !== movieId));
+    updateFavoritesList(newFavorites);
+    updateSeenList(newSeen);
+  };
 
+  const removeFromFavorites = (movieId: number) => {
+    const newFavorites = favorites.filter(id => id !== movieId);
+    setFavorites(newFavorites);
+    setMovies(current => current.filter(movie => movie.id !== movieId));
+    updateFavoritesList(newFavorites);
+  };
+  
+  const toggleFavorite = (id: number) => {
+    const isFavorited = favorites.includes(id);
+    const newFavorites = isFavorited ? favorites.filter(favId => favId !== id) : [...favorites, id];
+    setFavorites(newFavorites);
+    updateFavoritesList(newFavorites);
+  };
+
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 10 } }));
+  
   function handleDragEnd(event: any) {
     const { active, over } = event;
     if (active && over && active.id !== over.id) {
@@ -94,12 +108,14 @@ function App() {
         const newIndex = currentMovies.findIndex((item) => item.id === over.id);
         if (oldIndex === -1 || newIndex === -1) return currentMovies;
         const newOrder = arrayMove(currentMovies, oldIndex, newIndex);
-        setFavorites(newOrder.map(movie => movie.id));
+        const newFavoriteIds = newOrder.map(movie => movie.id);
+        setFavorites(newFavoriteIds);
+        updateFavoritesList(newFavoriteIds);
         return newOrder;
       });
     }
   }
-
+  
   const handleSearch = async () => {
     setLoading(true);
     setCurrentView('search');
@@ -112,17 +128,6 @@ function App() {
     } finally {
       setLoading(false);
     }
-  };
-  
-  const toggleFavorite = (id: number) => {
-    setFavorites(currentFavorites => {
-      const isFavorited = currentFavorites.includes(id);
-      const newFavorites = isFavorited ? currentFavorites.filter(favId => favId !== id) : [...currentFavorites, id];
-      if (currentView === 'favorites' && isFavorited) {
-        setMovies(currentMovies => currentMovies.filter(movie => movie.id !== id));
-      }
-      return newFavorites;
-    });
   };
 
   return (
@@ -152,7 +157,7 @@ function App() {
             <Transition as={Fragment} enter="transition ease-out duration-200" enterFrom="transform opacity-0 scale-95" enterTo="transform opacity-100 scale-100" leave="transition ease-in duration-150" leaveFrom="transform opacity-100 scale-100" leaveTo="transform opacity-0 scale-95">
               <Menu.Items className="absolute right-0 mt-2 w-48 bg-gray-800 border border-gray-700 rounded-lg shadow-lg z-20 focus:outline-none">
                 <Menu.Item>
-                  {({ active }) => (<button onClick={displayFavoriteMovies} className={`${active ? 'bg-gray-700' : ''} block w-full text-left px-4 py-2 text-sm text-gray-300 rounded-t-lg cursor-pointer`}>Lista</button>)}
+                  {({ active }) => (<button onClick={displayFavoriteMovies} className={`${active ? 'bg-gray-700' : ''} block w-full text-left px-4 py-2 text-sm text-gray-300 rounded-t-lg cursor-pointer`}>Favoritos</button>)}
                 </Menu.Item>
                 <Menu.Item>
                   {({ active }) => (<button onClick={displaySeenMovies} className={`${active ? 'bg-gray-700' : ''} block w-full text-left px-4 py-2 text-sm text-gray-300 cursor-pointer`}>Vistos</button>)}
