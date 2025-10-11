@@ -1,7 +1,7 @@
 import { useEffect, useState, Fragment } from "react";
-import { Menu, Transition } from '@headlessui/react';
+import { Menu, Transition, MenuItems, MenuItem } from '@headlessui/react';
 import { getPopularMovies, searchMovies, getGenres, getMovieById } from "./services/tmdb";
-import { getSharedLists, updateFavoritesList, updateSeenList } from "./services/firebase"; // Importar funções do Firebase
+import { getSharedLists, updateFavoritesList, updateSeenList } from "./services/firebase";
 import type { Movie, Genre } from "./services/tmdb";
 import MovieCard from "./components/moviecard";
 import MovieModal from "./components/movieModal";
@@ -16,12 +16,14 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [genres, setGenres] = useState<Genre[]>([]);
   
-  // Estados agora iniciam vazios e são preenchidos pelo Firebase
   const [favorites, setFavorites] = useState<number[]>([]);
   const [seenMovies, setSeenMovies] = useState<number[]>([]);
-  const [currentView, setCurrentView] = useState('popular'); // 'currentView' é apenas para controle de tela, não mais persistido
+  const [currentView, setCurrentView] = useState(() => localStorage.getItem('dashmovie-view') || 'popular');
 
-  // --- Funções de Display ---
+  useEffect(() => {
+    localStorage.setItem('dashmovie-view', currentView);
+  }, [currentView]);
+
   const displayPopularMovies = async () => {
     setLoading(true);
     setCurrentView('popular');
@@ -54,7 +56,6 @@ function App() {
     finally { setLoading(false); }
   };
 
-  // Efeito para carregar os dados iniciais do Firebase e da API
   useEffect(() => {
     async function loadInitialData() {
       setLoading(true);
@@ -64,7 +65,26 @@ function App() {
         setSeenMovies(initialSeen);
 
         await getGenres().then(setGenres);
-        await displayPopularMovies();
+        
+        const savedView = localStorage.getItem('dashmovie-view') || 'popular';
+        if (savedView === 'favorites') {
+          // Re-busca os filmes favoritos com base nos dados do Firebase
+          if (initialFavorites.length > 0) {
+            const favoriteMoviesData = await Promise.all(initialFavorites.map((id: number) => getMovieById(id)));
+            setMovies(favoriteMoviesData);
+          } else {
+            setMovies([]);
+          }
+        } else if (savedView === 'seen') {
+            if (initialSeen.length > 0) {
+              const seenMoviesData = await Promise.all(initialSeen.map((id: number) => getMovieById(id)));
+              setMovies(seenMoviesData);
+            } else {
+              setMovies([]);
+            }
+        } else {
+          await displayPopularMovies();
+        }
       } catch (error) { 
         console.error("Falha ao carregar dados iniciais:", error);
       } finally { 
@@ -89,6 +109,13 @@ function App() {
     setFavorites(newFavorites);
     setMovies(current => current.filter(movie => movie.id !== movieId));
     updateFavoritesList(newFavorites);
+  };
+
+  const removeFromSeen = (movieId: number) => {
+    const newSeen = seenMovies.filter(id => id !== movieId);
+    setSeenMovies(newSeen);
+    setMovies(current => current.filter(movie => movie.id !== movieId));
+    updateSeenList(newSeen);
   };
   
   const toggleFavorite = (id: number) => {
@@ -155,24 +182,30 @@ function App() {
               <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>
             </Menu.Button>
             <Transition as={Fragment} enter="transition ease-out duration-200" enterFrom="transform opacity-0 scale-95" enterTo="transform opacity-100 scale-100" leave="transition ease-in duration-150" leaveFrom="transform opacity-100 scale-100" leaveTo="transform opacity-0 scale-95">
-              <Menu.Items className="absolute right-0 mt-2 w-48 bg-gray-800 border border-gray-700 rounded-lg shadow-lg z-20 focus:outline-none">
-                <Menu.Item>
+              <MenuItems className="absolute right-0 mt-2 w-48 bg-gray-800 border border-gray-700 rounded-lg shadow-lg z-20 focus:outline-none">
+                <MenuItem>
                   {({ active }) => (<button onClick={displayFavoriteMovies} className={`${active ? 'bg-gray-700' : ''} block w-full text-left px-4 py-2 text-sm text-gray-300 rounded-t-lg cursor-pointer`}>Favoritos</button>)}
-                </Menu.Item>
-                <Menu.Item>
+                </MenuItem>
+                <MenuItem>
                   {({ active }) => (<button onClick={displaySeenMovies} className={`${active ? 'bg-gray-700' : ''} block w-full text-left px-4 py-2 text-sm text-gray-300 cursor-pointer`}>Vistos</button>)}
-                </Menu.Item>
-                <Menu.Item><a href="#" className="block px-4 py-2 text-sm text-gray-300 hover:bg-gray-700">Lançamentos 2025</a></Menu.Item>
+                </MenuItem>
+                <MenuItem>
+                  <a href="#" className="block px-4 py-2 text-sm text-gray-300 hover:bg-gray-700">Lançamentos 2025</a>
+                </MenuItem>
                 <div className="relative group">
                   <span className="flex justify-between items-center w-full px-4 py-2 text-sm text-gray-300 hover:bg-gray-700 rounded-b-lg cursor-pointer">
                     Gêneros
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
                   </span>
                   <div className="absolute left-full top-0 mt-[-1px] w-48 bg-gray-800 border border-gray-700 rounded-lg shadow-lg max-h-60 overflow-y-auto opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 custom-scrollbar">
-                    {genres.map(genre => (<Menu.Item key={genre.id}><a href="#" className="block px-4 py-2 text-sm text-gray-300 hover:bg-gray-700">{genre.name}</a></Menu.Item>))}
+                    {genres.map(genre => (
+                      <MenuItem key={genre.id}>
+                        <a href="#" className="block px-4 py-2 text-sm text-gray-300 hover:bg-gray-700">{genre.name}</a>
+                      </MenuItem>
+                    ))}
                   </div>
                 </div>
-              </Menu.Items>
+              </MenuItems>
             </Transition>
           </Menu>
         </div>
@@ -192,7 +225,7 @@ function App() {
                   return <SortableMovieCard key={movie.id} rank={index + 1} movie={movie} onMarkAsSeen={markAsSeen} onRemoveFromFavorites={removeFromFavorites} isFavorite={isFavorited} onClick={() => setSelectedMovie(movie)} />;
                 }
                 if (currentView === 'seen') {
-                  return <MovieCard key={movie.id} movie={movie} isFavorite={isFavorited} onClick={() => setSelectedMovie(movie)} />;
+                  return <MovieCard key={movie.id} movie={movie} onRemoveFromSeen={removeFromSeen} isFavorite={isFavorited} onClick={() => setSelectedMovie(movie)} />;
                 }
                 return <MovieCard key={movie.id} movie={movie} onFavorite={toggleFavorite} isFavorite={isFavorited} onClick={() => setSelectedMovie(movie)} />;
               })}
